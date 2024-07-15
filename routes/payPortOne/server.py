@@ -7,7 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 app = Flask(__name__)
 CORS(app)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:slrlal0510!@localhost/palette_springboot'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://palette:1234!@localhost/palette_springboot'
 db = SQLAlchemy(app)
 
 PORTONE_API_SECRET = 'JJb39tlTY10Gc1tIdjTmJe6mxUh3wYoNChE13mpG5U87gUcwCneLJ7UswDRRdFrklBibjkQ6ujs2opgq'
@@ -16,6 +16,13 @@ logging.basicConfig(level=logging.DEBUG)
 
 @app.route('/payment/complete', methods=['POST'])
 def payment_complete():
+    return handle_payment(request, [1000, 2000], 'http://localhost:8111/payment/complete')
+
+@app.route('/paymenttema/tema', methods=['POST'])
+def payment_tema():
+    return handle_payment(request, [1100, 1200, 1300, 1400, 1500, 1600], 'http://localhost:8111/paymenttema/tema')
+
+def handle_payment(request, valid_amounts, endpoint_url):
     data = request.json
     payment_id = data.get('paymentId')
     order_name = data.get('orderName')
@@ -39,8 +46,9 @@ def payment_complete():
         if 'amount' not in payment or 'customer' not in payment:
             return jsonify({'error': 'Payment response format error'}), 400
 
-        order = {'amount': 1000}  # 예시용 데이터
-        if order['amount'] == payment['amount']['total']:
+        total_amount = payment['amount']['total']
+
+        if total_amount in valid_amounts:
             if payment['status'] == 'PAID':
                 customer = payment.get('customer', {})
                 fullName = customer.get('name', 'Unknown')
@@ -50,7 +58,7 @@ def payment_complete():
                 payment_data = {
                     'paymentId': payment_id,
                     'orderName': order_name,
-                    'totalAmount': payment['amount']['total'],
+                    'totalAmount': total_amount,
                     'customerName': fullName,
                     'customerPhone': phoneNumber,
                     'customerEmail': email,
@@ -60,7 +68,7 @@ def payment_complete():
                 logging.debug(f"Sending payment data to Spring Boot server: {payment_data}")
 
                 headers = {'Authorization': jwt_token}
-                response = requests.post('http://localhost:8111/payment/complete', json=payment_data, headers=headers)
+                response = requests.post(endpoint_url, json=payment_data, headers=headers)
                 logging.debug(f"Spring Boot server response: {response.status_code} - {response.text}")
                 if response.status_code == 200:
                     return jsonify({'status': 'success'})
@@ -74,6 +82,3 @@ def payment_complete():
     except Exception as e:
         logging.error(f"Exception: {str(e)}")
         return jsonify({'error': str(e)}), 400
-
-if __name__ == '__main__':
-    app.run(port=5000)
